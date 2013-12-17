@@ -1,0 +1,15 @@
+#!/bin/bash
+if [ "$1" = "" ] ; then
+    echo "Sleep until the next time the current time is <HH:MM>"
+    echo "usage: $0 <HH:MM>"
+    exit 1
+fi
+target=$1
+cur_epoch=$(date '+%s')
+target_epoch=$(date -d "${target}" +%s)
+if [ ${target_epoch} -lt ${cur_epoch} ] ; then
+    target_epoch=$((target_epoch + 86400))
+fi
+secs=$((target_epoch-cur_epoch))
+echo "Sleeping ${secs} seconds"
+sleep ${secs}
