@@ -1,10 +1,10 @@
 #!/bin/bash
 # 'cmp -l' is one of the simplest ways to look at binary differences
 # between two files.  Unfortunately, it prints out the offsets in decimal
-# and the values in octal, making it pretty unfriendly.
+# (1-based) and the values in octal, making it pretty unfriendly.
 #
 # This shell script wraps around 'cmp' to print both the offset and values
-# in hexadecimal.
+# in hexadecimal and use 0-based byte offset numbering.
 #
 # Author: Nate Case <nacase@gmail.com>
 
@@ -19,7 +19,7 @@ cmp_out_to_hex() {
         ofs=`echo ${line} | awk '{print $1}'`
         val1_oct=`echo ${line} | awk '{print $2}'`
         val2_oct=`echo ${line} | awk '{print $3}'`
-        printf "0x%x:\t0x%02x\t0x%02x\n" ${ofs} \
+        printf "0x%x:\t0x%02x\t0x%02x\n" $((ofs-1)) \
                `echo $((0$val1_oct))` \
                `echo $((0$val2_oct))`
     done
