@@ -61,6 +61,12 @@ gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-3 "['F3']"
 gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-4 "['F4']"
 gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-5 "['F5']"
 
+# Alt-Tab should switch just one window, not all within a group
+# (e.g., all terminal windows lumped together)
+# Use Winkey-Tab for group switching
+gsettings set org.gnome.desktop.wm.keybindings switch-applications "['<Super>Tab']"
+gsettings set org.gnome.desktop.wm.keybindings switch-windows "['<Alt>Tab']"
+
 # Use okular as default PDF viewer
 cp /usr/share/applications/kde4/okular.desktop ~/.local/share/applications/
 xdg-mime default okular.desktop application/pdf
@@ -76,3 +82,18 @@ gsettings set "org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/prof
 gsettings set "org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$gtprof/" foreground-color "rgb(170,170,170)"
 gsettings set "org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$gtprof/" scrollback-lines 100000
 
+# use dark theme if available
+theme="Adwaita-dark"
+if [ -d "/usr/share/themes/${theme}" ] ; then
+    gsettings set "org.gnome.desktop.wm.preferences" "theme" "${theme}"
+    gsettings set "org.gnome.desktop.interface" "gtk-theme" "${theme}"
+    gsettings set "org.gnome.desktop.interface" "cursor-theme" "${theme}"
+    gsettings set "org.gnome.desktop.interface" "icon-theme" "${theme}"
+fi
+# ideally we'd use $XDG_CONFIG_HOME but it's not consistently defined
+cat >> /home/${USER}/.config/gtk-3.0/settings.ini << EOF
+[Settings]
+gtk-icon-theme-name = Adwaita-dark
+gtk-theme-name = Adwaita-dark
+gtk-application-prefer-dark-theme = true
+EOF
