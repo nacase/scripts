@@ -1,5 +1,15 @@
 #!/bin/bash
 
+do_dd() {
+    >&2 echo "    -> dd $*"
+    dd "$@"
+}
+
+die() {
+    >&2 echo "ERROR: $*"
+    exit 1
+}
+
 if [ "$1" == "" ]
 then
 	echo "usage: $0 <kernel image>"
@@ -8,14 +18,10 @@ fi
 
 KERN=$1
 
-if [ ! -f $KERN ]
-then
-	echo "Error: $KERN not found"
-	exit 2
-fi
+[ -f "${KERN}" ] || die "${KERN} not found"
 
 # Detect kernel image type
-FTYPE=`file $KERN`
+FTYPE=$(file "${KERN}")
 IS_UIMAGE=0
 IS_ELF=0
 IS_BIN=0
@@ -42,12 +48,7 @@ if [ $? == 0 ] ; then IS_GZBIN=1 ; ITYPE="gzipped binary" ; fi
 echo $FTYPE | grep -qEi ": data"
 if [ $? == 0 ] ; then IS_BIN=1 ; ITYPE="vmlinux binary" ; fi
 
-if [ "$ITYPE" == "Unknown" ]
-then
-	echo "Unknown kernel image type"
-	echo "File type: $FTYPE"
-	exit 3
-fi
+[ "${ITYPE}" = "Unknown" ] && die "Unknown kernel image type '${FTYPE}'"
 
 echo " * Detected image type: $ITYPE"
 
@@ -59,14 +60,24 @@ if [ $IS_BZIMAGE == 1 ]
 then
 	# Extract ELF file from bzImage
 	# The 'binoffset' utility is found in scripts/binoffset.c of any
-	# linux kernel tree
+	# linux kernel tree (UPDATE: Removed from tree in 2.6.34)
 	echo " * Searching for gzip magic header in bzImage"
-	HDR=`/opt/bin/binoffset $KERN 0x1f 0x8b 0x08 0x0`
+	HDR=`binoffset $KERN 0x1f 0x8b 0x08 0x0`
+    CAT_TOOL="cat"
+    if [ "$HDR" = "-1" ] ; then
+        echo "* No gzip header found"
+        echo "* Searching for xz header"
+	    HDR=`binoffset $KERN 0xfd 0x37 0x7a 0x58 0x5a 0x00`
+        [ "${HDR}" = "-1" ] && die "Unable to find initramfs"
+        CAT_TOOL="xzcat"
+    else
+        echo "* Found gzip header at ${HDR}"
+        CAT_TOOL="zcat"
+    fi
 	PID=$$
 	TMPFILE="/tmp/$KERN.vmlin.$PID"
-	echo " * Found at offset $HDR"
 	echo " * Extracting ELF image"
-	dd if=$KERN bs=1 skip=$HDR | zcat - > $TMPFILE
+	do_dd "if=$KERN" bs=1 "skip=$HDR" | ${CAT_TOOL} - > "$TMPFILE"
 	
 	# Now tell the rest of this script to treat it as a regular ELF image
 	IS_ELF=1
@@ -89,10 +100,26 @@ then
 	fi
 	echo " * Created $OUTFILE"
 	echo " * Checking for gzip file within $OUTFILE"
-	HDR=`/opt/bin/binoffset $OUTFILE 0x1f 0x8b 0x08 0x08`
+	HDR=`binoffset $OUTFILE 0x1f 0x8b 0x08 0x08`
+    SUFFIX=".gz"
+    if [ "$HDR" = "-1" ] ; then
+        echo "* No gzip header found"
+        echo "* Searching for xz header"
+	    HDR=`binoffset $OUTFILE 0xfd 0x37 0x7a 0x58 0x5a 0x00`
+        if [ "${HDR}" = "-1" ] ; then
+            echo "* No xz header found"
+            echo "* Searching for lzma header"
+	        HDR=`binoffset $OUTFILE 0x5d 0x00 0x00`
+            SUFFIX=".lzma"
+        else
+            SUFFIX=".xz"
+        fi
+
+        [ "${HDR}" = "-1" ] && die "No initramfs found"
+    fi
 	echo " * Found at offset $HDR"
-	echo " * Copying out gzip portion to $OUTFILE.gz"
-	dd if=$OUTFILE bs=1 skip=$HDR of=$OUTFILE.gz
+	echo " * Copying out compressed portion to $OUTFILE$SUFFIX"
+	do_dd "if=$OUTFILE" bs=1 "skip=$HDR" "of=$OUTFILE$SUFFIX"
 	exit 0
 fi
 
@@ -102,7 +129,7 @@ then
 	echo " * Converting to vmlinux binary format"
 	if [ $IS_UIMAGE == 1 ]
 	then
-		dd if=$KERN of=$TMPDIR/vmlinux.bin.gz bs=64 skip=1 &> /dev/null
+		do_dd if=$KERN of=$TMPDIR/vmlinux.bin.gz bs=64 skip=1 &> /dev/null
 		zcat $TMPDIR/vmlinux.bin.gz > $TMPDIR/vmlinux.bin
 	elif [ $IS_GZBIN == 1 ]
 	then
@@ -117,7 +144,7 @@ echo " * Searching for initramfs in binary image"
 OFS=`hexdump -C $BINFILE | grep -E "  1f 8b 08" | awk '{print $1}'`
 echo " * Found at offset 0x$OFS"
 SKIP=`echo $((0x$OFS/1024))`
-dd if=$BINFILE of=$OUTFILE bs=1024 skip=$SKIP &> /dev/null
+do_dd if=$BINFILE of=$OUTFILE bs=1024 skip=$SKIP &> /dev/null
 echo " * Creating $OUTFILE"
 # Fix trailing garbage at the end
 gunzip $OUTFILE &> /dev/null
