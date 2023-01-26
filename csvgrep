@@ -1,0 +1,8 @@
+#!/bin/bash
+# put csv file through grep filter while preserving the first header row
+
+IFS= read -r line
+# show header row
+echo "$line"
+
+grep -E "$@"

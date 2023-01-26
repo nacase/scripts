@@ -1,0 +1,3 @@
+#!/bin/sh
+# display hash of HEAD
+git show HEAD | head -n1 | cut -d' ' -f2

@@ -1,0 +1,38 @@
+#!/bin/bash
+
+usage() {
+    echo "usage: $0 <file> <size in bytes>"
+    exit 2
+}
+
+# wait for file $1 to exist for $2 seconds.  return 1 on timeout
+wait_for_file() {
+    local fname="$1"
+    local timeout
+    timeout=$(($2*10))
+    while [ ! -e "${fname}" ] ; do
+        timeout=$((timeout-1))
+        [ "${timeout}" = "0" ] && return 1
+        sleep 0.1
+    done
+    return 0
+}
+
+# wait for file $1 to exist with $2 bytes
+wait_for_file_size() {
+    local fname="$1"
+    local n_bytes="$2"
+    local cur_bytes
+
+    # first wait for file to exist
+    while [ ! -e "${fname}" ] ; do sleep 1 ; done
+    
+    cur_bytes=$(stat -t "${fname}" | awk '{print $2}')
+    while [ "${cur_bytes}" -lt "${n_bytes}" ] ; do
+        sleep 1
+        cur_bytes=$(stat -t "${fname}" | awk '{print $2}')
+    done
+}
+
+[ -n "$2" ] || usage
+wait_for_file_size "$1" "$2"

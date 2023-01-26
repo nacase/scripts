@@ -1,0 +1,2 @@
+#!/bin/sh
+git symbolic-ref --short HEAD 2> /dev/null || git branch | grep -E "^\*" | awk '{print $NF}' | tr -d ')'

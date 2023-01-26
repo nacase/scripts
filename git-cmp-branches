@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# get human-friendly difference of git branches in terms of which
+# commits are present in one and not the other.  intended to be tolerant
+# to changes cherry-picked out-of-order or with a different merge history.
+
+# Only look back N commits
+MAX_DEPTH=1000
+
+usage() {
+    >&2 echo "usage: $0 <hash A> <hash B>"
+    exit 1
+}
+
+# return one line git commit summary line
+git_commit_subject() {
+    git log -n1 --format=%s $1
+}
+
+git_patch_id() {
+    git diff "$1^..$1" | git patch-id --stable | sed 's/ 0000000000000000000000000000000000000000//'
+}
+
+# list of <stable patch ID> "commit log summary"
+git_normalized_hist() {
+    ref="$1"
+    n="$2"
+    last_n_hashes=$(git log "-n${n}" --pretty=oneline "${ref}" | awk '{print $1}')
+    ( for h in ${last_n_hashes} ; do
+        patch_id=$(git_patch_id "${h}")
+        summary=$(git_commit_subject "${h}")
+        printf "%-60s : %s\n" "${summary:0:60}" "${patch_id}"
+    done ) | sort
+}
+
+r1="$1"
+r2="$2"
+
+[ -n "${r2}" ] || usage
+
+ancestor=$(git merge-base "${r1}" "${r2}")
+
+echo "Common ancestor: ${ancestor:0:10} - $(git_commit_subject "${ancestor}")"
+
+hist1=$(mktemp /tmp/git.branch.ref1.XXXXXX)
+hist2=$(mktemp /tmp/git.branch.ref2.XXXXXX)
+git_normalized_hist "${ancestor}..${r1}" "${MAX_DEPTH}" > "${hist1}"
+git_normalized_hist "${ancestor}..${r2}" "${MAX_DEPTH}" > "${hist2}"
+
+echo ""
+echo "Showing differences between refs ${r1} and ${r2}:"
+echo ""
+diff -su "${hist1}" "${hist2}" | sed "s,${hist1},${r1}," | sed "s,${hist2},${r2},"
+rm -f "${hist1}" "${hist2}"

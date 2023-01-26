@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# 0-based desktop number
+CUR_DESKTOP=$(xdotool get_desktop)
+
+xwininfo -tree -root | grep -iE "$*"
+echo "To raise window, run:"
+echo "    xwin-raise.sh <hex win ID>"

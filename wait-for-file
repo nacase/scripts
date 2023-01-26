@@ -1,0 +1,22 @@
+#!/bin/bash
+
+usage() {
+    echo "usage: $0 <file> <seconds>"
+    exit 2
+}
+
+# wait for file $1 to exist for $2 seconds.  return 1 on timeout
+wait_for_file() {
+    local fname="$1"
+    local timeout
+    timeout=$(($2*10))
+    while [ ! -e "${fname}" ] ; do
+        timeout=$((timeout-1))
+        [ "${timeout}" = "0" ] && return 1
+        sleep 0.1
+    done
+    return 0
+}
+
+[ -n "$2" ] || usage
+wait_for_file "$1" "$2"

@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# For a given source file in a git repository, print out other
+# related files to it that are modified alongside it in commits.
+# XXX: Will get fooled by large cleanup / subsystem commits that
+# touch a bunch of files.
+
+if [ "$1" = "" ] ; then
+    echo "usage: $0 <filename in git repo>"
+    exit 1
+fi
+
+echo "Related source files and subsystems for '$1':"
+# XXX: Limit to last 50 commits to keep it reasonable
+git log --no-merges -n 50 --pretty=oneline $1 | awk '{print $1}' | while read -e line ; do git show --pretty=oneline --stat ${line} | grep -vE " files changed," | sed -r 's/[0-9a-f]{40}//' | sed 's/\(.*\):[^:]*/SUBSYSTEM: \1/' | sed 's/ *| .*//' ; done | sort | uniq
+
+echo ""
+echo "List of commits modifying additional files beyond '$1':"
+git log --no-merges -n 50 --pretty=oneline $1 | awk '{print $1}' | while read -e line ; do 
+    git show --pretty=oneline --stat "${line}" | grep -E " file.* changed,"  | grep -qE "([^1]|[0-9][0-9][0-9]*) file"
+    if [ $? = 0 ] ; then
+        git show --pretty=oneline --stat "${line}"
+    fi
+done
+

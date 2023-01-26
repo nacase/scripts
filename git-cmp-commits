@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+diff_filter() {
+    sed 's/^@@ -*[0-9]*.*/==CHUNK MARKER==/' | sed 's/^+\([^+]\)/ (+) \1/' | sed 's/^-\([^-]\)/ (-) \1/' | sed 's/^index [0-9a-f]*.*/index AAAA..BBBB/'
+}
+
+patch_id_1=$(git diff "$1^..$1" | git patch-id --stable)
+patch_id_2=$(git diff "$2^..$2" | git patch-id --stable)
+
+echo "git patch-id for ${1:0:10}: ${patch_id_1}"
+echo "git patch-id for ${2:0:10}: ${patch_id_2}"
+if [ "${patch_id_1}" = "${patch_id_2}" ] ; then
+    echo "git patch-id matches, commits are probably the same thing"
+else
+    echo "git patch-id mismatch, commits may be different"
+fi
+
+echo ""
+#diff -U3 -I "^@@ " -I "^index " <(git show -U1 $1 | diff_filter) <(git show -U1 $2 | diff_filter) | grep -vE '^[-+]index '
+diff -U3 -I "^@@ " -I "^index " <(git show -U1 $1 | diff_filter) <(git show -U1 $2 | diff_filter)

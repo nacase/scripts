@@ -1,0 +1,8 @@
+#!/bin/bash
+usage() {
+    >&2 echo "usage: $0 <function name>"
+    exit 1
+}
+func_name="$1"
+[ -n "${func_name}" ] || usage
+git grep -E "[^a-zA-Z0-9_]${func_name} *\([^;]*$|EXPORT_SYMBOL\(${func_name}\)" | grep -vE "[^a-zA-Z0-9_]if *\(|.* = .*${func_name}|return.*${func_name}"
