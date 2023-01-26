@@ -1,17 +1,18 @@
 #!/bin/bash
 #
-# Interactively edit a gzipped cpio ramfs archive.  Makes checks
+# Interactively edit a compressed cpio ramfs archive.  Makes checks
 # to ensure safety and enables you to add this to sudoers file for
 # all users.
 #
-# Nate Case <ncase@xes-inc.com>
+# Nate Case <nacase@gmail.com>
 #
 
-if [ "$1" = "" ]
-then
-	echo "usage: $0 <initramfs.cpio.gz file>"
-	exit 1
-fi
+usage() {
+    echo "usage: $0 <initramfs.cpio.{gz|lzma|bz2}>"
+    exit 1
+}
+
+[ -f "$1" ] || usage
 
 if [ "$UID" != "0" ]
 then
@@ -41,14 +42,32 @@ function cleanup {
 }
 
 FNAME=$1
+COMPRESS_TOOL=""
+DECOMPRESS_TOOL="cat"
+COMPRESS_SUFFIX=""
+COMPRESS_ARGS=""
 
-file $FNAME | grep "gzip compressed data" >> /dev/null
-res=$?
-
-if [ $res != 0 ]
-then
-	echo "Invalid image file given:  Must be gzipped cpio archive"
-	exit 3
+IN_TYPE=$(file "${FNAME}")
+if [[ "${IN_TYPE}" =~ gzip ]] ; then
+    COMPRESS_TOOL="gzip"
+    DECOMPRESS_TOOL="zcat"
+    COMPRESS_SUFFIX=".gz"
+elif [[ "${IN_TYPE}" =~ LZMA ]] ; then
+    COMPRESS_TOOL="lzma"
+    DECOMPRESS_TOOL="lzcat"
+    COMPRESS_SUFFIX=".lzma"
+elif [[ "${IN_TYPE}" =~ bzip2 ]] ; then
+    COMPRESS_TOOL="bzip2"
+    DECOMPRESS_TOOL="bzcat"
+    COMPRESS_SUFFIX=".bz2"
+elif [[ "${IN_TYPE}" =~ XZ ]] ; then
+    COMPRESS_TOOL="xz"
+    DECOMPRESS_TOOL="xzcat"
+    COMPRESS_SUFFIX=".xz"
+    # Kernel embedded XZ does not support sha256/crc64
+    COMPRESS_ARGS="--check=crc32"
+else
+    echo "Note: Assuming archive is uncompressed"
 fi
 
 fileowner=`stat $FNAME | grep "Uid:" | sed 's/.*Uid:[^0-9]*\([0-9]*\)\/.*/\1/'`
@@ -64,10 +83,10 @@ TMPNAME=`basename $TMPDIR`
 ARCHIVE=`mktemp /tmp/ramfs.cpio.XXXXX`
 
 echo "Decompressing $0 .."
-zcat $FNAME > $ARCHIVE
+"${DECOMPRESS_TOOL}" $FNAME > $ARCHIVE
 if [ $? != 0 ]
 then
-	echo "Error: Failed to decompress gzipped cpio archive '$FNAME'"
+	echo "Error: Failed to decompress cpio archive '$FNAME'"
 	rm -f $ARCHIVE
 	exit 7
 fi
@@ -123,9 +142,9 @@ popd >> /dev/null
 
 echo "Compressing image and copying to '$FNAME'"
 pushd /tmp >> /dev/null
-gzip -9 $ARCHIVE
+[ -n "${COMPRESS_TOOL}" ] && "${COMPRESS_TOOL}" "${COMPRESS_ARGS}" -9 "${ARCHIVE}"
 popd >> /dev/null
-cp -f $ARCHIVE.gz $FNAME
-rm -f $ARCHIVE.gz
+cp -f "${ARCHIVE}${COMPRESS_SUFFIX}" "${FNAME}"
+rm -f "${ARCHIVE}${COMPRESS_SUFFIX}"
 cleanup
-echo "$FNAME is now updated with the changes you made"
+echo "${FNAME} is now updated with the changes you made"
